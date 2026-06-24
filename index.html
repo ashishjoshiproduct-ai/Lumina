@@ -6,10 +6,7 @@
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        color: #1a1a1a;
-        background: #faf9f7;
-        margin: 0;
-        padding: 0;
+        color: #1a1a1a; background: #faf9f7; margin: 0; padding: 0;
       }
       .wrap { max-width: 720px; margin: 0 auto; padding: 32px 24px 80px; }
       h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
@@ -19,10 +16,14 @@
         padding: 18px 20px; margin-bottom: 28px;
       }
       .upload-row p { margin: 0 0 10px; font-size: 14px; color: #6b6b6b; }
+      .key-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid #eee; }
+      .key-row label { font-size: 13px; color: #6b6b6b; display: block; margin-bottom: 6px; }
+      .key-row input { width: 100%; padding: 8px 10px; border: 1px solid #d4d0c8; border-radius: 8px; font-size: 13px; font-family: monospace; }
+      .key-hint { font-size: 11px; color: #aaa; margin: 6px 0 0; }
       .welcome { color: #1d7a55; font-size: 14px; margin: 0 0 14px; min-height: 18px; }
       .reader {
         background: #fff; border: 1px solid #e6e3dd; border-radius: 12px;
-        padding: 40px 48px; min-height: 320px; margin-bottom: 20px;
+        padding: 40px 48px; min-height: 200px; margin-bottom: 20px;
       }
       .reader p {
         font-family: Georgia, "Times New Roman", serif;
@@ -30,10 +31,9 @@
       }
       .section-heading {
         font-family: Georgia, "Times New Roman", serif;
-        font-size: 21px; font-weight: 700; color: #1a1a1a;
-        margin: 0 0 16px; max-width: 62ch;
+        font-size: 21px; font-weight: 700; color: #1a1a1a; margin: 0 0 16px; max-width: 62ch;
       }
-      .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
       button {
         font-size: 14px; padding: 9px 18px; border: 1px solid #d4d0c8;
         background: #fff; border-radius: 8px; cursor: pointer;
@@ -43,22 +43,48 @@
       .position { color: #8a8a8a; font-size: 13px; margin-left: 6px; }
       .jump { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6b6b6b; }
       .jump input { width: 64px; padding: 7px 8px; border: 1px solid #d4d0c8; border-radius: 8px; font-size: 14px; }
+      .clarify {
+        background: #fff; border: 1px solid #e6e3dd; border-radius: 12px;
+        padding: 24px 28px; margin-bottom: 20px; display: none;
+      }
+      .clarify.visible { display: block; }
+      .clarify-title { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+      .clarify-sub { font-size: 13px; color: #6b6b6b; margin: 0 0 16px; }
+      .q-row { display: flex; gap: 8px; margin-bottom: 16px; }
+      .q-row textarea {
+        flex: 1; padding: 10px 12px; border: 1px solid #d4d0c8; border-radius: 8px;
+        font-size: 14px; font-family: inherit; resize: none; min-height: 44px;
+      }
+      .q-row button { flex-shrink: 0; padding: 10px 20px; }
+      .answer-box {
+        background: #f6f5f2; border-radius: 10px; padding: 16px 18px;
+        font-size: 15px; line-height: 1.7; color: #2a2a2a; display: none; white-space: pre-wrap;
+      }
+      .answer-box.visible { display: block; }
+      .hist-item { border-top: 1px solid #eee; padding-top: 14px; margin-top: 14px; }
+      .hist-q { font-size: 13px; color: #6b6b6b; margin: 0 0 6px; }
+      .hist-a { font-size: 14px; line-height: 1.6; color: #2a2a2a; margin: 0; }
       @media (max-width: 600px) {
         .reader { padding: 24px 20px; }
         .reader p { font-size: 17px; }
         .jump { margin-left: 0; }
+        .clarify { padding: 18px 16px; }
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-
       <h1>Lumina</h1>
       <p class="tagline">Read actively. Understand deeply.</p>
 
       <div class="upload-row">
         <p>Upload a PDF to start reading.</p>
         <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+        <div class="key-row">
+          <label>Gemini API key (for Clarify)</label>
+          <input type="password" id="api-key" placeholder="Paste your key here">
+          <p class="key-hint">Your key stays in this browser only — never sent anywhere except Google's API.</p>
+        </div>
       </div>
 
       <p class="welcome" id="welcome"></p>
@@ -68,17 +94,28 @@
       </div>
 
       <div class="controls">
-        <button id="prev-btn" onclick="showPreviousChunk()">Previous</button>
-        <button id="next-btn" onclick="showNextChunk()">Next</button>
+        <button id="prev-btn" onclick="goPrev()">Previous</button>
+        <button id="next-btn" onclick="goNext()">Next</button>
         <span class="position" id="position">—</span>
         <span class="jump">
           Jump to section
           <input type="number" id="jump-input" min="1" placeholder="#"
-                 onkeydown="if(event.key==='Enter'){jumpToChunk();}">
-          <button onclick="jumpToChunk()">Go</button>
+                 onkeydown="if(event.key==='Enter'){jumpTo();}">
+          <button onclick="jumpTo()">Go</button>
         </span>
       </div>
 
+      <div class="clarify" id="clarify-box">
+        <p class="clarify-title">Clarify</p>
+        <p class="clarify-sub">Ask about what you've read so far. The AI only sees sections you've passed — no spoilers.</p>
+        <div class="q-row">
+          <textarea id="q-input" placeholder="What does this mean? Why is this important?"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askAI();}"></textarea>
+          <button onclick="askAI()" id="ask-btn">Ask</button>
+        </div>
+        <div class="answer-box" id="answer-box"></div>
+        <div id="history"></div>
+      </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -89,165 +126,123 @@
       var chunks = [];
       var currentChunk = 0;
       var pdfName = "";
+      var chatHistory = [];
 
-      function median(nums) {
-        if (nums.length === 0) return 0;
-        var s = nums.slice().sort(function(a, b) { return a - b; });
-        var mid = Math.floor(s.length / 2);
-        return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+      function escapeHtml(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       }
 
-      function escapeHtml(str) {
-        return str
-          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      }
-
-      function heightOf(item) {
-        return item.height || Math.abs(item.transform[3]) || 0;
-      }
-
-      function groupIntoLines(items) {
-        var arr = items.filter(function(it) { return it.str && it.str.trim().length > 0; });
-        var heights = arr.map(heightOf).filter(function(h) { return h > 0; });
-        var medH = median(heights) || 10;
-        var tol = Math.max(2, medH * 0.5);
-
-        arr.sort(function(a, b) {
-          var dy = b.transform[5] - a.transform[5];
-          if (Math.abs(dy) > 2) return dy;
-          return a.transform[4] - b.transform[4];
-        });
-
-        var lines = [];
-        var cur = null;
-        arr.forEach(function(it) {
-          var y = it.transform[5];
-          if (cur && Math.abs(cur.y - y) <= tol) {
-            cur.items.push(it);
-          } else {
-            if (cur) lines.push(cur);
-            cur = { y: y, items: [it] };
-          }
-        });
-        if (cur) lines.push(cur);
-        return { lines: lines, medH: medH };
-      }
-
-      function lineToBlock(line, medH) {
-        var freq = {};
-        line.items.forEach(function(it) {
-          var h = Math.round(heightOf(it) * 2) / 2;
-          freq[h] = (freq[h] || 0) + (it.str.length || 1);
-        });
-        var domH = Number(Object.keys(freq).sort(function(a, b) {
-          return freq[b] - freq[a];
-        })[0]) || medH;
-
-        var kept = line.items.filter(function(it) {
-          var h = heightOf(it);
-          var s = it.str.trim();
-          var isFootnoteMarker = /^[\d][\d,\u2013\-]{0,4}$/.test(s);
-          if (isFootnoteMarker && h < domH * 0.85) return false;
-          return true;
-        });
-
-        var text = kept.map(function(it) { return it.str; }).join(" ")
-                       .replace(/\s+/g, " ").trim();
-        return { size: domH, text: text };
-      }
-
-      function computeBodySize(blocks) {
-        var weight = {};
-        blocks.forEach(function(b) {
-          var sz = Math.round(b.size);
-          weight[sz] = (weight[sz] || 0) + b.text.length;
-        });
-        var best = Object.keys(weight).sort(function(a, b) {
-          return weight[b] - weight[a];
-        })[0];
-        return Number(best) || 10;
-      }
-
-      function buildChunks(blocks) {
-        var bodySize = computeBodySize(blocks);
-        var out = [];
-        var curHeading = "";
-        var buf = [];
-
-        function flush() {
-          if (buf.length > 0) {
-            out.push({ heading: curHeading, text: buf.join(" ") });
-            buf = [];
-          }
-        }
-
-        blocks.forEach(function(b, idx) {
-          var words = b.text.split(" ").length;
-          var isHeading = b.size >= bodySize * 1.2 && words <= 14 && b.text.length < 120;
-
-          if (isHeading) {
-            flush();
-            curHeading = b.text;
-            var next = blocks[idx + 1];
-            var nextWords = next ? next.text.split(" ").length : 0;
-            var nextIsHeading = next && next.size >= bodySize * 1.2 && nextWords <= 14;
-            if (!next || nextIsHeading) {
-              out.push({ heading: curHeading, text: "" });
-            }
-          } else {
-            b.text.split(" ").forEach(function(w) {
-              if (w) buf.push(w);
-              if (buf.length >= 150) flush();
-            });
-          }
-        });
-        flush();
-        return out;
-      }
+      /* ---- PDF extraction: trust pdf.js reading order ---- */
 
       async function loadPdf() {
         var file = document.getElementById("file-input").files[0];
         if (!file) return;
-
         pdfName = file.name;
         document.getElementById("chunk-text").innerHTML = "<p>Reading…</p>";
 
-        var data = await file.arrayBuffer();
-        var pdf = await pdfjsLib.getDocument({ data: data }).promise;
+        try {
+          var data = await file.arrayBuffer();
+          var pdf = await pdfjsLib.getDocument({ data: data }).promise;
+          var allText = [];
 
-        var allBlocks = [];
-        for (var i = 1; i <= pdf.numPages; i++) {
-          var page = await pdf.getPage(i);
-          var content = await page.getTextContent();
+          for (var i = 1; i <= pdf.numPages; i++) {
+            var pg = await pdf.getPage(i);
+            var ct = await pg.getTextContent();
+            var pageStr = "";
+            var prevY = null;
+            var prevEndX = null;
 
-          var items = content.items.filter(function(item) {
-            return Math.abs(item.transform[0]) >= Math.abs(item.transform[1]);
+            for (var j = 0; j < ct.items.length; j++) {
+              var it = ct.items[j];
+              if (!it.str || it.str.trim().length === 0) continue;
+
+              /* skip rotated text (watermarks) */
+              if (Math.abs(it.transform[1]) > Math.abs(it.transform[0])) continue;
+
+              var y = Math.round(it.transform[5]);
+              var x = it.transform[4];
+              var h = it.height || Math.abs(it.transform[3]) || 10;
+
+              if (prevY !== null) {
+                var yDiff = Math.abs(y - prevY);
+                if (yDiff > h * 1.8) {
+                  pageStr += "\n";
+                } else if (yDiff > 2) {
+                  pageStr += " ";
+                } else {
+                  if (prevEndX !== null && x - prevEndX > h * 2) {
+                    pageStr += " ";
+                  }
+                }
+              }
+
+              pageStr += it.str;
+              prevY = y;
+              prevEndX = x + (it.width || it.str.length * h * 0.6);
+            }
+
+            if (pageStr.trim().length > 0) allText.push(pageStr.trim());
+          }
+
+          var full = allText.join("\n\n");
+
+          /* split into paragraphs on double newlines */
+          var paragraphs = full.split(/\n\s*\n+/);
+          chunks = [];
+          var curHeading = "";
+          var buf = [];
+
+          paragraphs.forEach(function(para) {
+            para = para.replace(/\s+/g, " ").trim();
+            if (!para) return;
+            var words = para.split(" ");
+            var isHeading = words.length <= 14 && para.length < 120;
+
+            if (isHeading) {
+              if (buf.length > 0) {
+                chunks.push({ heading: curHeading, text: buf.join(" ") });
+                buf = [];
+              }
+              curHeading = para;
+            } else {
+              words.forEach(function(w) {
+                if (w) buf.push(w);
+                if (buf.length >= 150) {
+                  chunks.push({ heading: curHeading, text: buf.join(" ") });
+                  buf = [];
+                  curHeading = "";
+                }
+              });
+            }
           });
+          if (buf.length > 0) chunks.push({ heading: curHeading, text: buf.join(" ") });
 
-          var grouped = groupIntoLines(items);
-          grouped.lines.forEach(function(line) {
-            var block = lineToBlock(line, grouped.medH);
-            if (block.text.length > 0) allBlocks.push(block);
-          });
-        }
-
-        chunks = buildChunks(allBlocks);
-
-        var saved = localStorage.getItem("lumina-progress-" + pdfName);
-        if (saved !== null && Number(saved) < chunks.length) {
-          currentChunk = Number(saved);
-          document.getElementById("welcome").innerText =
-            "Welcome back — picking up where you left off.";
-        } else {
           currentChunk = 0;
-          document.getElementById("welcome").innerText = "";
-        }
+          chatHistory = [];
+          document.getElementById("history").innerHTML = "";
+          document.getElementById("answer-box").className = "answer-box";
+          document.getElementById("welcome").innerText =
+            "Loaded " + chunks.length + " sections from " + pdfName;
 
-        showChunk();
+          /* restore progress */
+          var saved = localStorage.getItem("lumina-progress-" + pdfName);
+          if (saved !== null && Number(saved) < chunks.length) {
+            currentChunk = Number(saved);
+            document.getElementById("welcome").innerText = "Welcome back — picking up where you left off.";
+          }
+
+          showChunk();
+          document.getElementById("clarify-box").className = "clarify visible";
+        } catch (e) {
+          document.getElementById("chunk-text").innerHTML =
+            "<p>Could not read this PDF. Try a text-based one.</p>";
+        }
       }
 
+      /* ---- Navigation ---- */
+
       function saveProgress() {
-        localStorage.setItem("lumina-progress-" + pdfName, currentChunk);
+        try { localStorage.setItem("lumina-progress-" + pdfName, currentChunk); } catch(e) {}
       }
 
       function showChunk() {
@@ -257,44 +252,108 @@
         if (c.text) html += '<p>' + escapeHtml(c.text) + '</p>';
         if (!c.heading && !c.text) html += '<p>(empty section)</p>';
         document.getElementById("chunk-text").innerHTML = html;
-
         document.getElementById("position").innerText =
           "Section " + (currentChunk + 1) + " of " + chunks.length;
         document.getElementById("prev-btn").disabled = (currentChunk === 0);
         document.getElementById("next-btn").disabled = (currentChunk === chunks.length - 1);
       }
 
-      function showNextChunk() {
-        if (currentChunk < chunks.length - 1) {
-          currentChunk = currentChunk + 1;
-          saveProgress();
-          showChunk();
+      function goNext() {
+        if (currentChunk < chunks.length - 1) { currentChunk++; saveProgress(); showChunk(); }
+      }
+      function goPrev() {
+        if (currentChunk > 0) { currentChunk--; saveProgress(); showChunk(); }
+      }
+      function jumpTo() {
+        var inp = document.getElementById("jump-input");
+        var t = Number(inp.value) - 1;
+        if (!chunks.length) return;
+        if (isNaN(t) || t < 0 || t >= chunks.length) {
+          inp.value = ""; inp.placeholder = "1-" + chunks.length; return;
         }
+        currentChunk = t; saveProgress(); showChunk(); inp.value = "";
       }
 
-      function showPreviousChunk() {
-        if (currentChunk > 0) {
-          currentChunk = currentChunk - 1;
-          saveProgress();
-          showChunk();
+      /* ---- Clarify (AI) ---- */
+
+      function getReadContent() {
+        var r = "";
+        for (var i = 0; i <= currentChunk; i++) {
+          var c = chunks[i];
+          if (c.heading) r += "\n\n## " + c.heading + "\n";
+          if (c.text) r += c.text + " ";
         }
+        return r.trim();
       }
 
-      function jumpToChunk() {
-        var input = document.getElementById("jump-input");
-        var target = Number(input.value) - 1;
-        if (chunks.length === 0) return;
-        if (isNaN(target) || target < 0 || target >= chunks.length) {
-          input.value = "";
-          input.placeholder = "1-" + chunks.length;
-          return;
+      async function askAI() {
+        var key = document.getElementById("api-key").value.trim();
+        if (!key) { alert("Please paste your Gemini API key first."); return; }
+
+        var qBox = document.getElementById("q-input");
+        var question = qBox.value.trim();
+        if (!question) return;
+
+        var ansDiv = document.getElementById("answer-box");
+        var btn = document.getElementById("ask-btn");
+
+        btn.disabled = true;
+        ansDiv.className = "answer-box visible";
+        ansDiv.innerHTML = '<span style="color:#999;font-style:italic">Thinking…</span>';
+
+        var readContent = getReadContent();
+        var sectionLabel = "Section " + (currentChunk + 1) + " of " + chunks.length;
+
+        var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
+          'They are on ' + sectionLabel + '. ' +
+          'ONLY answer based on the text below. ' +
+          'If the answer is in a later part, say "That comes up later — keep reading!" without spoiling.\n\n' +
+          'Text read so far:\n\n' + readContent;
+
+        var contents = [];
+        chatHistory.forEach(function(m) {
+          contents.push({ role: m.role, parts: [{ text: m.text }] });
+        });
+        contents.push({ role: "user", parts: [{ text: question }] });
+
+        try {
+          var res = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + key,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: contents
+              })
+            }
+          );
+          var data = await res.json();
+
+          if (data.error) {
+            ansDiv.innerHTML = '<span style="color:#c44">Error: ' + escapeHtml(data.error.message) + '</span>';
+            btn.disabled = false;
+            return;
+          }
+
+          var answer = data.candidates[0].content.parts[0].text;
+          ansDiv.innerText = answer;
+
+          chatHistory.push({ role: "user", text: question });
+          chatHistory.push({ role: "model", text: answer });
+
+          var hi = document.createElement("div");
+          hi.className = "hist-item";
+          hi.innerHTML = '<p class="hist-q">Q: ' + escapeHtml(question) + '</p>' +
+                         '<p class="hist-a">' + escapeHtml(answer) + '</p>';
+          document.getElementById("history").insertBefore(hi, document.getElementById("history").firstChild);
+        } catch (err) {
+          ansDiv.innerHTML = '<span style="color:#c44">Could not reach the AI. Check your key and try again.</span>';
         }
-        currentChunk = target;
-        saveProgress();
-        showChunk();
-        input.value = "";
+
+        btn.disabled = false;
+        qBox.value = "";
       }
     </script>
-
   </body>
 </html>
