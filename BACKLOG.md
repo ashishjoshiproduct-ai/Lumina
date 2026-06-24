@@ -16,5 +16,11 @@ Things we've consciously decided *not* to build for the MVP, with the reasoning 
 - **Research-paper-specific features.** MVP stays general (any text-based PDF). Paper-specific niceties (parsing arXiv structure, citations, figures) are a possible future wedge but not MVP.
 - **Scanned / image-only PDFs.** MVP only handles text-based PDFs. Scanned documents need OCR (image-to-text), which is a separate, heavier capability.
 
+## Showing figures and images
+- **MVP is text-only and drops all figures.** Two ways to display a PDF, in tension: (a) extract text — what we do; enables AI scoping but loses images and layout; (b) render each page as an image — shows figures and layout, but the app can't read the words without OCR. The real answer is to do BOTH: render the page for the human, extract text in the background for the AI. More work; deferred until the core AI value is proven.
+
+## Watermark / header / footer noise
+- **Fixed the arXiv vertical watermark** (filter rotated text fragments). Still TODO: page numbers, running headers/footers, and line numbers can still leak into the text. Improve the cleanup pass later.
+
 ## Not yet specified (placeholders for features still ahead)
 - The AI "Clarify" and "Recall" layers — these are core to the product but not yet built; this backlog tracks what we're *skipping*, not what's still to come.

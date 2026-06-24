@@ -2,22 +2,89 @@
 <html>
   <head>
     <title>Lumina</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #1a1a1a;
+        background: #faf9f7;
+        margin: 0;
+        padding: 0;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+      }
+      h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
+      .tagline { color: #6b6b6b; font-size: 15px; margin: 0 0 28px; }
+      .upload-row {
+        background: #fff;
+        border: 1px solid #e6e3dd;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 28px;
+      }
+      .upload-row p { margin: 0 0 10px; font-size: 14px; color: #6b6b6b; }
+      .welcome { color: #1d7a55; font-size: 14px; margin: 0 0 14px; min-height: 18px; }
+      .reader {
+        background: #fff;
+        border: 1px solid #e6e3dd;
+        border-radius: 12px;
+        padding: 40px 48px;
+        min-height: 320px;
+        margin-bottom: 20px;
+      }
+      .reader p {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 18px;
+        line-height: 1.8;
+        color: #2a2a2a;
+        margin: 0;
+        max-width: 62ch;
+      }
+      .controls { display: flex; align-items: center; gap: 10px; }
+      button {
+        font-size: 14px;
+        padding: 9px 18px;
+        border: 1px solid #d4d0c8;
+        background: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      button:hover { background: #f3f1ec; }
+      button:disabled { opacity: 0.4; cursor: default; }
+      .position { color: #8a8a8a; font-size: 13px; margin-left: 6px; }
+      @media (max-width: 600px) {
+        .reader { padding: 24px 20px; }
+        .reader p { font-size: 17px; }
+      }
+    </style>
   </head>
   <body>
+    <div class="wrap">
 
-    <h1>Lumina</h1>
+      <h1>Lumina</h1>
+      <p class="tagline">Read actively. Understand deeply.</p>
 
-    <p>Upload a PDF to start reading.</p>
-    <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+      <div class="upload-row">
+        <p>Upload a PDF to start reading.</p>
+        <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+      </div>
 
-    <hr>
+      <p class="welcome" id="welcome"></p>
 
-    <p id="welcome"></p>
-    <p id="chunk-text">Your reading will appear here.</p>
+      <div class="reader">
+        <p id="chunk-text">Your reading will appear here.</p>
+      </div>
 
-    <button onclick="showPreviousChunk()">Previous</button>
-    <button onclick="showNextChunk()">Next</button>
-    <p id="position">—</p>
+      <div class="controls">
+        <button id="prev-btn" onclick="showPreviousChunk()">Previous</button>
+        <button id="next-btn" onclick="showNextChunk()">Next</button>
+        <span class="position" id="position">—</span>
+      </div>
+
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
@@ -33,6 +100,7 @@
         if (!file) return;
 
         pdfName = file.name;
+        document.getElementById("chunk-text").innerText = "Reading…";
 
         var data = await file.arrayBuffer();
         var pdf = await pdfjsLib.getDocument({ data: data }).promise;
@@ -41,7 +109,14 @@
         for (var i = 1; i <= pdf.numPages; i++) {
           var page = await pdf.getPage(i);
           var content = await page.getTextContent();
-          var pageText = content.items.map(function(item) { return item.str; }).join(" ");
+
+          var keptItems = content.items.filter(function(item) {
+            var horizontal = Math.abs(item.transform[0]);
+            var vertical = Math.abs(item.transform[1]);
+            return horizontal >= vertical;
+          });
+
+          var pageText = keptItems.map(function(item) { return item.str; }).join(" ");
           fullText = fullText + " " + pageText;
         }
 
@@ -61,7 +136,7 @@
       }
 
       function splitIntoChunks(text) {
-        var words = text.split(" ");
+        var words = text.split(" ").filter(function(w) { return w.length > 0; });
         var result = [];
         var chunkSize = 150;
         for (var i = 0; i < words.length; i = i + chunkSize) {
@@ -78,6 +153,8 @@
         document.getElementById("chunk-text").innerText = chunks[currentChunk];
         document.getElementById("position").innerText =
           "Section " + (currentChunk + 1) + " of " + chunks.length;
+        document.getElementById("prev-btn").disabled = (currentChunk === 0);
+        document.getElementById("next-btn").disabled = (currentChunk === chunks.length - 1);
       }
 
       function showNextChunk() {
