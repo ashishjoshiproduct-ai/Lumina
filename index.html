@@ -306,9 +306,11 @@
 
         var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
           'They are on ' + sectionLabel + '. ' +
-          'ONLY answer based on the text below. ' +
-          'If the answer is in a later part, say "That comes up later — keep reading!" without spoiling.\n\n' +
-          'Text read so far:\n\n' + readContent;
+          'You have two jobs: (1) Use your full general knowledge to explain any concept the reader asks about — definitions, background, context, examples. ' +
+          '(2) When it comes to THIS SPECIFIC DOCUMENT, only reference content from the sections below. ' +
+          'If the reader asks about something that appears later in this document, say "That comes up later in the paper — keep reading!" without revealing what is ahead. ' +
+          'But if they ask a general knowledge question like "what are categorical variables" or "how does gradient descent work", answer it fully using your own knowledge, and connect it to what the paper has said so far if relevant.\n\n' +
+          'Sections the reader has covered so far:\n\n' + readContent;
 
         var contents = [];
         chatHistory.forEach(function(m) {
