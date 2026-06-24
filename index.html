@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lumina</title>
+  </head>
+  <body>
+
+    <h1>Lumina</h1>
+
+    <p>Upload a PDF to start reading.</p>
+    <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+
+    <hr>
+
+    <p id="welcome"></p>
+    <p id="chunk-text">Your reading will appear here.</p>
+
+    <button onclick="showPreviousChunk()">Previous</button>
+    <button onclick="showNextChunk()">Next</button>
+    <p id="position">—</p>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+      var chunks = [];
+      var currentChunk = 0;
+      var pdfName = "";
+
+      async function loadPdf() {
+        var file = document.getElementById("file-input").files[0];
+        if (!file) return;
+
+        pdfName = file.name;
+
+        var data = await file.arrayBuffer();
+        var pdf = await pdfjsLib.getDocument({ data: data }).promise;
+
+        var fullText = "";
+        for (var i = 1; i <= pdf.numPages; i++) {
+          var page = await pdf.getPage(i);
+          var content = await page.getTextContent();
+          var pageText = content.items.map(function(item) { return item.str; }).join(" ");
+          fullText = fullText + " " + pageText;
+        }
+
+        chunks = splitIntoChunks(fullText);
+
+        var saved = localStorage.getItem("lumina-progress-" + pdfName);
+        if (saved !== null) {
+          currentChunk = Number(saved);
+          document.getElementById("welcome").innerText =
+            "Welcome back — picking up where you left off.";
+        } else {
+          currentChunk = 0;
+          document.getElementById("welcome").innerText = "";
+        }
+
+        showChunk();
+      }
+
+      function splitIntoChunks(text) {
+        var words = text.split(" ");
+        var result = [];
+        var chunkSize = 150;
+        for (var i = 0; i < words.length; i = i + chunkSize) {
+          result.push(words.slice(i, i + chunkSize).join(" "));
+        }
+        return result;
+      }
+
+      function saveProgress() {
+        localStorage.setItem("lumina-progress-" + pdfName, currentChunk);
+      }
+
+      function showChunk() {
+        document.getElementById("chunk-text").innerText = chunks[currentChunk];
+        document.getElementById("position").innerText =
+          "Section " + (currentChunk + 1) + " of " + chunks.length;
+      }
+
+      function showNextChunk() {
+        if (currentChunk < chunks.length - 1) {
+          currentChunk = currentChunk + 1;
+          saveProgress();
+          showChunk();
+        }
+      }
+
+      function showPreviousChunk() {
+        if (currentChunk > 0) {
+          currentChunk = currentChunk - 1;
+          saveProgress();
+          showChunk();
+        }
+      }
+    </script>
+
+  </body>
+</html>
