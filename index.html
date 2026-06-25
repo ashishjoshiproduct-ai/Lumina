@@ -79,7 +79,7 @@
 
       <div class="upload-row">
         <p>Upload a PDF to start reading.</p>
-        <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+        <input type="file" id="file-input" accept=".pdf,.json" onchange="loadFile()">
         <div id="upload-error" class="error"></div>
         <div class="key-row">
           <label>Gemini API key (for Clarify)</label>
@@ -126,7 +126,7 @@
       var chatHistory = [];
       
       // Get backend URL from environment or use default
-      var BACKEND_URL = "https://lumina-backend-49cf.onrender.com";
+      var BACKEND_URL = window.location.origin;
       if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
         BACKEND_URL = "http://localhost:5000";
       }
@@ -135,7 +135,7 @@
         return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       }
 
-      async function loadPdf() {
+     async function loadFile() {
         var file = document.getElementById("file-input").files[0];
         var errDiv = document.getElementById("upload-error");
         errDiv.innerText = "";
@@ -145,21 +145,33 @@
         document.getElementById("chunk-text").innerHTML = "<p>Reading…</p>";
 
         try {
-          var formData = new FormData();
-          formData.append("file", file);
+          var fullText;
 
-          var res = await fetch(BACKEND_URL + "/extract", {
-            method: "POST",
-            body: formData
-          });
+          if (file.name.endsWith('.json')) {
+            // Handle JSON file directly (pre-extracted)
+            var jsonText = await file.text();
+            var jsonData = JSON.parse(jsonText);
+            fullText = jsonData.text;
+          } else if (file.name.endsWith('.pdf')) {
+            // Handle PDF file via backend
+            var formData = new FormData();
+            formData.append("file", file);
 
-          var data = await res.json();
+            var res = await fetch(BACKEND_URL + "/extract", {
+              method: "POST",
+              body: formData
+            });
 
-          if (!res.ok) {
-            throw new Error(data.error || "Failed to extract PDF");
+            var data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(data.error || "Failed to extract PDF");
+            }
+
+            fullText = data.text;
+          } else {
+            throw new Error("Please upload a PDF or JSON file");
           }
-
-          var fullText = data.text;
 
           /* Split into paragraphs, build chunks */
           var paragraphs = fullText.split(/\n\s*\n+/);
@@ -266,14 +278,13 @@
         var readContent = getReadContent();
         var sectionLabel = "Section " + (currentChunk + 1) + " of " + chunks.length;
 
-      var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
-  'They are on ' + sectionLabel + '. ' +
-  'CRITICAL RULES: ' +
-  '(1) If they ask a question about the paper\'s arguments, findings, or explanations that they haven\'t explicitly read yet: ALWAYS say "The paper explains this next—keep reading!" Do NOT answer it. Your job is NOT to summarize the paper for them. ' +
-  '(2) For quick vocabulary/definition questions about terms they encounter: One sentence only. Example: Q: "What is an embedding?" A: "An embedding is a numerical representation of data in a high-dimensional space." ' +
-  '(3) Only answer substantive questions IF the explanation they\'re asking about is explicitly in the sections they\'ve already read. ' +
-  'Never synthesize, explain, or teach the paper\'s own content. Only unblock immediate confusion about specific terms.\n\n' +
-  'Sections read so far:\n\n' + readContent;
+        var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
+          'They are on ' + sectionLabel + '. ' +
+          'You have two jobs: (1) Use your full general knowledge to explain any concept the reader asks about — definitions, background, context, examples. ' +
+          '(2) When it comes to THIS SPECIFIC DOCUMENT, only reference content from the sections below. ' +
+          'If the reader asks about something that appears later in this document, say "That comes up later in the paper — keep reading!" without revealing what is ahead. ' +
+          'But if they ask a general knowledge question like "what are categorical variables" or "how does gradient descent work", answer it fully using your own knowledge, and connect it to what the paper has said so far if relevant.\n\n' +
+          'Sections the reader has covered so far:\n\n' + readContent;
 
         var contents = [];
         chatHistory.forEach(function(m) {
