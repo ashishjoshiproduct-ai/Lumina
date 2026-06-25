@@ -266,13 +266,13 @@
         var readContent = getReadContent();
         var sectionLabel = "Section " + (currentChunk + 1) + " of " + chunks.length;
 
-        var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
-          'They are on ' + sectionLabel + '. ' +
-          'You have two jobs: (1) Use your full general knowledge to explain any concept the reader asks about — definitions, background, context, examples. ' +
-          '(2) When it comes to THIS SPECIFIC DOCUMENT, only reference content from the sections below. ' +
-          'If the reader asks about something that appears later in this document, say "That comes up later in the paper — keep reading!" without revealing what is ahead. ' +
-          'But if they ask a general knowledge question like "what are categorical variables" or "how does gradient descent work", answer it fully using your own knowledge, and connect it to what the paper has said so far if relevant.\n\n' +
-          'Sections the reader has covered so far:\n\n' + readContent;
+       var systemPrompt = 'You help a reader understand a document called "' + pdfName + '". ' +
+        'They are on ' + sectionLabel + '. ' +
+        'You have two jobs: ' +
+        '(1) For general knowledge questions about concepts NOT in the document so far (like "what is a neural network" when they haven\'t reached that part): Give a SHORT, definition-level explanation (1-5 sentences max). Do not provide comprehensive tutorials or deep dives. Say "Keep reading—this document will explain it in detail!" ' +
+        '(2) For THIS SPECIFIC DOCUMENT: Only reference content they\'ve already read. If they ask about something that appears later, say "That comes up later in the paper—keep reading!" without spoiling. ' +
+        'Never give long explanations that duplicate what the paper itself will teach them.\n\n' +
+        'Sections read so far:\n\n' + readContent;
 
         var contents = [];
         chatHistory.forEach(function(m) {
