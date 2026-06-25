@@ -64,11 +64,11 @@
       .hist-item { border-top: 1px solid #eee; padding-top: 14px; margin-top: 14px; }
       .hist-q { font-size: 13px; color: #6b6b6b; margin: 0 0 6px; }
       .hist-a { font-size: 14px; line-height: 1.6; color: #2a2a2a; margin: 0; }
+      .error { color: #c44; font-size: 13px; margin: 8px 0; }
       @media (max-width: 600px) {
         .reader { padding: 24px 20px; }
         .reader p { font-size: 17px; }
         .jump { margin-left: 0; }
-        .clarify { padding: 18px 16px; }
       }
     </style>
   </head>
@@ -80,6 +80,7 @@
       <div class="upload-row">
         <p>Upload a PDF to start reading.</p>
         <input type="file" id="file-input" accept=".pdf" onchange="loadPdf()">
+        <div id="upload-error" class="error"></div>
         <div class="key-row">
           <label>Gemini API key (for Clarify)</label>
           <input type="password" id="api-key" placeholder="Paste your key here">
@@ -118,76 +119,50 @@
       </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
       var chunks = [];
       var currentChunk = 0;
       var pdfName = "";
       var chatHistory = [];
+      
+      // Get backend URL from environment or use default
+      var BACKEND_URL = window.location.origin;
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        BACKEND_URL = "http://localhost:5000";
+      }
 
       function escapeHtml(s) {
         return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       }
 
-      /* ---- PDF extraction: trust pdf.js reading order ---- */
-
       async function loadPdf() {
         var file = document.getElementById("file-input").files[0];
+        var errDiv = document.getElementById("upload-error");
+        errDiv.innerText = "";
+        
         if (!file) return;
         pdfName = file.name;
         document.getElementById("chunk-text").innerHTML = "<p>Reading…</p>";
 
         try {
-          var data = await file.arrayBuffer();
-          var pdf = await pdfjsLib.getDocument({ data: data }).promise;
-          var allText = [];
+          var formData = new FormData();
+          formData.append("file", file);
 
-          for (var i = 1; i <= pdf.numPages; i++) {
-            var pg = await pdf.getPage(i);
-            var ct = await pg.getTextContent();
-            var pageStr = "";
-            var prevY = null;
-            var prevEndX = null;
+          var res = await fetch(BACKEND_URL + "/extract", {
+            method: "POST",
+            body: formData
+          });
 
-            for (var j = 0; j < ct.items.length; j++) {
-              var it = ct.items[j];
-              if (!it.str || it.str.trim().length === 0) continue;
+          var data = await res.json();
 
-              /* skip rotated text (watermarks) */
-              if (Math.abs(it.transform[1]) > Math.abs(it.transform[0])) continue;
-
-              var y = Math.round(it.transform[5]);
-              var x = it.transform[4];
-              var h = it.height || Math.abs(it.transform[3]) || 10;
-
-              if (prevY !== null) {
-                var yDiff = Math.abs(y - prevY);
-                if (yDiff > h * 1.8) {
-                  pageStr += "\n";
-                } else if (yDiff > 2) {
-                  pageStr += " ";
-                } else {
-                  if (prevEndX !== null && x - prevEndX > h * 2) {
-                    pageStr += " ";
-                  }
-                }
-              }
-
-              pageStr += it.str;
-              prevY = y;
-              prevEndX = x + (it.width || it.str.length * h * 0.6);
-            }
-
-            if (pageStr.trim().length > 0) allText.push(pageStr.trim());
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to extract PDF");
           }
 
-          var full = allText.join("\n\n");
+          var fullText = data.text;
 
-          /* split into paragraphs on double newlines */
-          var paragraphs = full.split(/\n\s*\n+/);
+          /* Split into paragraphs, build chunks */
+          var paragraphs = fullText.split(/\n\s*\n+/);
           chunks = [];
           var curHeading = "";
           var buf = [];
@@ -195,6 +170,7 @@
           paragraphs.forEach(function(para) {
             para = para.replace(/\s+/g, " ").trim();
             if (!para) return;
+            
             var words = para.split(" ");
             var isHeading = words.length <= 14 && para.length < 120;
 
@@ -224,22 +200,14 @@
           document.getElementById("welcome").innerText =
             "Loaded " + chunks.length + " sections from " + pdfName;
 
-          /* restore progress */
-          var saved = localStorage.getItem("lumina-progress-" + pdfName);
-          if (saved !== null && Number(saved) < chunks.length) {
-            currentChunk = Number(saved);
-            document.getElementById("welcome").innerText = "Welcome back — picking up where you left off.";
-          }
-
           showChunk();
           document.getElementById("clarify-box").className = "clarify visible";
-        } catch (e) {
+        } catch (err) {
+          errDiv.innerText = "Error: " + err.message;
           document.getElementById("chunk-text").innerHTML =
-            "<p>Could not read this PDF. Try a text-based one.</p>";
+            "<p>Could not read this PDF. Make sure the backend is running.</p>";
         }
       }
-
-      /* ---- Navigation ---- */
 
       function saveProgress() {
         try { localStorage.setItem("lumina-progress-" + pdfName, currentChunk); } catch(e) {}
@@ -258,12 +226,8 @@
         document.getElementById("next-btn").disabled = (currentChunk === chunks.length - 1);
       }
 
-      function goNext() {
-        if (currentChunk < chunks.length - 1) { currentChunk++; saveProgress(); showChunk(); }
-      }
-      function goPrev() {
-        if (currentChunk > 0) { currentChunk--; saveProgress(); showChunk(); }
-      }
+      function goNext() { if (currentChunk < chunks.length - 1) { currentChunk++; saveProgress(); showChunk(); } }
+      function goPrev() { if (currentChunk > 0) { currentChunk--; saveProgress(); showChunk(); } }
       function jumpTo() {
         var inp = document.getElementById("jump-input");
         var t = Number(inp.value) - 1;
@@ -273,8 +237,6 @@
         }
         currentChunk = t; saveProgress(); showChunk(); inp.value = "";
       }
-
-      /* ---- Clarify (AI) ---- */
 
       function getReadContent() {
         var r = "";
@@ -330,15 +292,15 @@
               })
             }
           );
-          var data = await res.json();
+          var rdata = await res.json();
 
-          if (data.error) {
-            ansDiv.innerHTML = '<span style="color:#c44">Error: ' + escapeHtml(data.error.message) + '</span>';
+          if (rdata.error) {
+            ansDiv.innerHTML = '<span style="color:#c44">Error: ' + escapeHtml(rdata.error.message) + '</span>';
             btn.disabled = false;
             return;
           }
 
-          var answer = data.candidates[0].content.parts[0].text;
+          var answer = rdata.candidates[0].content.parts[0].text;
           ansDiv.innerText = answer;
 
           chatHistory.push({ role: "user", text: question });
